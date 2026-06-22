@@ -8,6 +8,7 @@ mod lora;
 mod metrics;
 pub(crate) mod openai;
 mod pause;
+mod profile;
 mod server_info;
 mod sleep;
 mod tokenize;
@@ -102,6 +103,13 @@ fn build_router_with_options(
             .route("/is_paused", get(pause::is_paused))
             .route("/server_info", get(server_info::server_info))
             .route("/get_world_size", get(world_size::get_world_size))
+    }
+
+    if state.api_server_options.profiler_enabled {
+        // Profiler control routes, gated like Python's `--profiler-config`.
+        router = router
+            .route("/start_profile", post(profile::start_profile))
+            .route("/stop_profile", post(profile::stop_profile));
     }
 
     let enable_request_id_headers = state.api_server_options.enable_request_id_headers;
