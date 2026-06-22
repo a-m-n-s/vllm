@@ -1464,6 +1464,70 @@ async fn is_sleeping_wrapper_sends_typed_request_and_returns_typed_response() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn profile_wrapper_sends_is_start_and_prefix() {
+    init_tracing();
+    let ipc = IpcNamespace::new().unwrap();
+    let handshake_address = ipc.handshake_endpoint();
+    let engine_id = b"engine-profile".to_vec();
+
+    let (shutdown_tx, engine_task) = spawn_mock_engine_task(
+        handshake_address.clone(),
+        engine_id.clone(),
+        |dealer, push| {
+            Box::pin(async move {
+                let utility = recv_engine_message(dealer).await;
+                assert_eq!(utility[0].as_ref(), &[0x03]);
+
+                let payload = decode_value(&utility[1]);
+                let array = match payload {
+                    Value::Array(array) => array,
+                    other => panic!("expected utility payload array, got {other:?}"),
+                };
+                assert_eq!(array.len(), 4);
+                let call_id = array[1].as_u64().expect("call_id");
+                assert_eq!(array[2], Value::from("profile"));
+                assert_eq!(
+                    array[3],
+                    Value::Array(vec![Value::from(true), Value::from("bench")])
+                );
+
+                send_outputs(
+                    push,
+                    EngineCoreOutputs {
+                        utility_output: Some(UtilityOutput {
+                            call_id: call_id.into(),
+                            failure_message: None,
+                            result: None,
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            })
+        },
+    );
+
+    let client = connect_client_with_ipc(
+        handshake_test_config(
+            handshake_address,
+            1,
+            "test-model",
+            Duration::from_secs(2),
+            5,
+            None,
+        ),
+        &ipc,
+    )
+    .await;
+
+    client.profile(true, Some("bench".to_string())).await.unwrap();
+
+    let _ = shutdown_tx.send(());
+    engine_task.await.unwrap();
+    client.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn call_utility_failure_message_surfaces_as_error() {
     init_tracing();
     let ipc = IpcNamespace::new().unwrap();

@@ -715,6 +715,13 @@ impl EngineCoreClient {
         Ok(())
     }
 
+    /// Start or stop the engine profiler. `profile_prefix` names the trace
+    /// produced on start. Mirrors Python's `call_utility("profile", ...)`.
+    pub async fn profile(&self, is_start: bool, profile_prefix: Option<String>) -> Result<()> {
+        self.call_utility::<(), _>("profile", (is_start, profile_prefix)).await?;
+        Ok(())
+    }
+
     /// Pause the scheduler so generation can be halted
     pub async fn pause_scheduler(&self, mode: PauseMode, clear_cache: bool) -> Result<()> {
         self.call_utility::<(), _>("pause_scheduler", (mode, clear_cache)).await?;
