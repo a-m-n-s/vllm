@@ -44,6 +44,10 @@ pub struct ApiServerOptions {
     pub enable_prompt_tokens_details: bool,
     /// When `true`, set `X-Request-Id` on every HTTP response.
     pub enable_request_id_headers: bool,
+    /// When `true`, expose the profiler control routes (`/start_profile` and
+    /// `/stop_profile`). Mirrors Python, which registers them only when
+    /// profiling is enabled via `--profiler-config`.
+    pub profiler_enabled: bool,
 }
 
 /// CORS settings mirroring Python's `CORSMiddleware`; the default is permissive.

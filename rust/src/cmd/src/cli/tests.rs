@@ -65,6 +65,7 @@ fn serve_args_forward_python_flags_with_separator() {
                             ],
                         ),
                         allow_credentials: false,
+                        profiler_config: None,
                     },
                     managed_engine: ManagedEngineArgs {
                         python: "../vllm/.venv/bin/python",
@@ -259,6 +260,77 @@ fn frontend_args_json_passes_enable_request_id_headers_into_config() {
     };
     let config = args.into_config();
     assert!(config.api_server_options.enable_request_id_headers);
+}
+
+#[test]
+fn frontend_args_json_enables_profiler_routes_when_profiler_config_set() {
+    let cli = Cli::try_parse_from([
+        "vllm-rs",
+        "frontend",
+        "--listen-fd",
+        "3",
+        "--input-address",
+        "ipc:///tmp/input.sock",
+        "--output-address",
+        "ipc:///tmp/output.sock",
+        "--args-json",
+        r#"{"model_tag":"Qwen/Qwen3-0.6B","profiler_config":{"profiler":"torch","torch_profiler_dir":"/tmp/traces"}}"#,
+    ])
+    .unwrap();
+
+    let Command::Frontend(args) = cli.command else {
+        panic!("expected frontend args");
+    };
+    let config = args.into_config();
+    assert!(config.api_server_options.profiler_enabled);
+}
+
+#[test]
+fn frontend_args_json_leaves_profiler_routes_disabled_by_default() {
+    let cli = Cli::try_parse_from([
+        "vllm-rs",
+        "frontend",
+        "--listen-fd",
+        "3",
+        "--input-address",
+        "ipc:///tmp/input.sock",
+        "--output-address",
+        "ipc:///tmp/output.sock",
+        "--args-json",
+        r#"{"model_tag":"Qwen/Qwen3-0.6B"}"#,
+    ])
+    .unwrap();
+
+    let Command::Frontend(args) = cli.command else {
+        panic!("expected frontend args");
+    };
+    let config = args.into_config();
+    assert!(!config.api_server_options.profiler_enabled);
+}
+
+#[test]
+fn frontend_args_json_leaves_profiler_routes_disabled_when_profiler_kind_absent() {
+    // A profiler_config without an active `profiler` (e.g. only directory set)
+    // must not expose the routes, mirroring Python's gate on `profiler is not None`.
+    let cli = Cli::try_parse_from([
+        "vllm-rs",
+        "frontend",
+        "--listen-fd",
+        "3",
+        "--input-address",
+        "ipc:///tmp/input.sock",
+        "--output-address",
+        "ipc:///tmp/output.sock",
+        "--args-json",
+        r#"{"model_tag":"Qwen/Qwen3-0.6B","profiler_config":{"profiler":null}}"#,
+    ])
+    .unwrap();
+
+    let Command::Frontend(args) = cli.command else {
+        panic!("expected frontend args");
+    };
+    let config = args.into_config();
+    assert!(!config.api_server_options.profiler_enabled);
 }
 
 #[test]
@@ -461,6 +533,7 @@ fn frontend_args_accept_json() {
                             ],
                         ),
                         allow_credentials: false,
+                        profiler_config: None,
                     },
                 },
             ),
@@ -949,6 +1022,7 @@ fn serve_args_accept_handshake_aliases() {
                             ],
                         ),
                         allow_credentials: false,
+                        profiler_config: None,
                     },
                     managed_engine: ManagedEngineArgs {
                         python: "python3",
@@ -1069,6 +1143,7 @@ fn serve_frontend_config_uses_dp_address_as_advertised_host() {
                 enable_log_requests: false,
                 enable_prompt_tokens_details: false,
                 enable_request_id_headers: false,
+                profiler_enabled: false,
             },
             cors: CorsConfig {
                 allow_origins: [
@@ -1150,6 +1225,7 @@ fn serve_frontend_config_keeps_tcp_transport_for_non_local_only_topology() {
                 enable_log_requests: false,
                 enable_prompt_tokens_details: false,
                 enable_request_id_headers: false,
+                profiler_enabled: false,
             },
             cors: CorsConfig {
                 allow_origins: [
@@ -1249,6 +1325,7 @@ fn frontend_config_uses_external_coordinator_when_coordinator_address_is_present
                 enable_log_requests: false,
                 enable_prompt_tokens_details: false,
                 enable_request_id_headers: false,
+                profiler_enabled: false,
             },
             cors: CorsConfig {
                 allow_origins: [

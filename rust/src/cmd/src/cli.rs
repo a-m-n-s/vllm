@@ -91,6 +91,16 @@ pub enum Command {
 #[serde(transparent)]
 pub struct JsonStringList(pub Vec<String>);
 
+/// Subset of Python's `ProfilerConfig` the frontend cares about. Only the active
+/// `profiler` kind is needed: its presence decides whether the profiler control
+/// routes are exposed. The full config is consumed by the Python engine, so any
+/// other fields are ignored here.
+#[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
+pub struct ProfilerConfigView {
+    #[serde(default)]
+    pub profiler: Option<String>,
+}
+
 /// Runtime arguments shared by the external-engine and managed-engine paths.
 #[serde_as]
 #[derive(Educe, Clone, Args, PartialEq, Eq, Deserialize)]
@@ -251,6 +261,14 @@ pub struct SharedRuntimeArgs {
     #[serde(default)]
     pub allow_credentials: bool,
 
+    /// Profiler configuration forwarded from Python (present only when
+    /// `--profiler-config` is set on the server). Used solely to gate the
+    /// profiler control routes; the engine consumes the full config via the
+    /// Python passthrough path, so this is never parsed as a Rust CLI flag.
+    #[arg(skip)]
+    #[serde(default)]
+    pub profiler_config: Option<ProfilerConfigView>,
+
     /// Unsupported Python vLLM frontend arguments recognized but not yet
     /// implemented in Rust.
     #[educe(Debug(ignore))]
@@ -381,7 +399,14 @@ impl SharedRuntimeArgs {
             enable_log_requests: self.enable_log_requests,
             enable_prompt_tokens_details: self.enable_prompt_tokens_details,
             enable_request_id_headers: self.enable_request_id_headers,
+            profiler_enabled: self.profiler_enabled(),
         }
+    }
+
+    /// Whether profiling is enabled, mirroring Python's gate on
+    /// `profiler_config.profiler is not None`.
+    fn profiler_enabled(&self) -> bool {
+        self.profiler_config.as_ref().is_some_and(|config| config.profiler.is_some())
     }
 
     fn cors_config(&self) -> CorsConfig {
